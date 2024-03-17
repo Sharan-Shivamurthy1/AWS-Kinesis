@@ -1,0 +1,131 @@
+##################################Create a Kinesis Stream #############################################################
+
+import boto3
+kinesis_client = boto3.client('kinesis', region_name='your-region')
+stream_name = 'Our stream_name'
+shard_count = 1  # Can be adjusted based on our throughput requirements
+####################################Create Kinesis Stream #############################################################
+response = kinesis_client.create_stream(
+    StreamName=stream_name,
+    ShardCount=shard_count
+)
+#print(response)
+############################## Setting Up Kinesis Data Firehose Delivery Stream to S3 ################################
+firehose_client = boto3.client('firehose', region_name='our-region')
+s3_bucket_name = 'our s3-bucket-name'
+s3_prefix = 'our-prefix/'
+
+response = firehose_client.create_delivery_stream(
+    DeliveryStreamName='OurDeliveryStreamName',
+    S3DestinationConfiguration={
+        'BucketARN': f'arn:aws:s3:::{s3_bucket_name}',
+        'RoleARN': 'arn:aws:iam::account-id:role/our-role',
+        'Prefix': s3_prefix,
+        'BufferingHints': {
+            'SizeInMBs': 5,
+            'IntervalInSeconds': 300
+        },
+        'CompressionFormat': 'UNCOMPRESSED'
+    },
+    SourceConfiguration={
+        'KinesisStreamSourceConfiguration': {
+            'KinesisStreamARN': f'arn:aws:kinesis:region:account-id:stream/{stream_name}',
+            'RoleARN': 'arn:aws:iam::account-id:role/our-role'
+        }
+    }
+)
+
+#print(response)
+################################ Configure an S3 Bucket for Data Lake Storage. Before running this, make sure the bucket is created. Example:##########
+s3_client = boto3.client('s3', region_name='our-region')
+
+logging_bucket = 'our-logging-bucket'  # Ensure this is created and properly configured
+
+s3_client.put_bucket_logging(
+    Bucket=s3_bucket_name,
+    BucketLoggingStatus={
+        'LoggingEnabled': {
+            'TargetBucket': logging_bucket,
+            'TargetPrefix': 'log/'
+        }
+    }
+)
+############################## Create a Lambda Function #############################################################################################
+lambda_client = boto3.client('lambda', region_name='our-region')
+
+with open("our-lambda-function.zip", 'rb') as f:
+    zipped_code = f.read()
+
+response = lambda_client.create_function(
+    FunctionName='ourFunctionName',
+    Runtime='python3.8',
+    Role='arn:aws:iam::account-id:role/our-lambda-role',
+    Handler='our-handler',  # example 'lambda_function.lambda_handler'
+    Code=dict(ZipFile=zipped_code),
+    Description='A description of our function',
+    Timeout=300,  # Maximum allowable timeout
+    MemorySize=128,  # Allocated memory
+)
+#print(response)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+####  Here's a Python script for an AWS Lambda function that processes events streamed through Kinesis Data Firehose, enriching them with created_datetime, 
+event_type, and event_subtype fields based on the given requirements. ##########################################################################
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+              The Lambda function will: Read the incoming event data from Kinesis Data Firehose.
+              Parse each event as a JSON object.
+              Add the created_datetime, event_type, and event_subtype fields to each event.
+              Return the modified records back to Kinesis Data Firehose for delivery to an S3 bucket.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+import base64
+import json
+from datetime import datetime
+
+def lambda_handler(event, context):
+    output = []
+
+    for record in event['records']:
+        # Kinesis Data Firehose data is base64 encoded, so decode it
+        payload = base64.b64decode(record['data'])
+        # Convert payload to a dictionary
+        payload_dict = json.loads(payload)
+        
+        # Extract and convert creation timestamp to datetime
+        created_at_iso = datetime.utcfromtimestamp(payload_dict['created_at']).isoformat()
+
+        # Split event_name to derive type and subtype
+        event_parts = payload_dict['event_name'].split(':')
+        event_type = event_parts[0]
+        event_subtype = event_parts[1] if len(event_parts) > 1 else None
+
+        # Add new fields to the event
+        enriched_event = {
+            **payload_dict,
+            'created_datetime': created_at_iso,
+            'event_type': event_type,
+            'event_subtype': event_subtype
+        }
+
+        # Convert the enriched event back to JSON and encode it in base64
+        enriched_payload = base64.b64encode(json.dumps(enriched_event).encode('utf-8')).decode('utf-8')
+        
+        # Prepare the record for output
+        output_record = {
+            'recordId': record['recordId'],
+            'result': 'Ok',
+            'data': enriched_payload
+        }
+        output.append(output_record)
+
+    return {'records': output}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+################################################################ Deployment Procedure #################################################################################
+1) Create a new Lambda function in the AWS Management Console.
+2) Select Python 3.x as the runtime and paste the script above into the Lambda function code editor.
+3) Adjust the basic settings, such as memory and timeout, based on your expected workload. Given the volume of 1M events per hour, 
+ensure your Lambda function and Kinesis stream are scaled appropriately.
+4) Attach an IAM role to the Lambda function that has permissions to read from Kinesis streams and write to S3 buckets.
+5) Connect this Lambda function to our Kinesis Data Firehose delivery stream as a data transformation function.
+6) Configure our Kinesis Data Firehose delivery stream to save the processed events to our designated S3 bucket.
+This setup will process events in real-time, enriching them with the required fields before they are saved in our data lake. 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
