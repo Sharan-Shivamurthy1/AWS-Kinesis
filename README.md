@@ -44,3 +44,41 @@ Implementation Steps:
    
 This general approach should get us started with building a data lake from events coming through a Kinesis stream.
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Technologies Used:
+
+                        a) Amazon Kinesis: It is chosen for its ability to handle real-time data streaming at scale. Kinesis Streams collect and temporarily store the raw event data, making it available for processing.
+b) AWS Lambda: Used for its serverless compute capabilities, allowing us to run code in response to Kinesis data streams without managing servers. Lambda is ideal for event data transformation because it can scale automatically with the volume of incoming data.
+c) Amazon S3: Selected as the storage solution for its flexibility as a data lake repository. S3 can store large volumes of data in various formats and is easily accessible for analysis and processing with other AWS services.
+d) Terraform: Terraform is used for infrastructure as code (IaC) to automate the deployment of the AWS resources needed for this solution. It ensures our infrastructure is reproducible and can be version-controlled.
+e) Python 3: Python is chosen for the Lambda function creation and later for data processing tasks.
+Makefile: A Makefile is used to automate the setup and testing of our environment, streamlining the development and deployment process.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Design Questions:
+                       a) Handling Duplicate Events: To handle duplicate events, we can use a combination of the event_uuid and created_at fields to create a composite key.
+ This key can be used to detect duplicates either during ingestion or at the storage level. At a scripting level we can ensure that even if the same event is processed more than once, it will not result in duplicate records in the storage.
+
+ b) Data Partitioning for Performance and Scalability: Partitioning the data is crucial for both querying performance and scalability. The data should be partitioned based on event_type and created_datetime. This approach allows efficient querying by event type and time range, which are likely the most common query patterns. 
+For example using Amazon S3 as the storage layer,  partitioning can be done in the S3 key design as, s3://our-bucket/event_type=payment/created_date=2024-03-17/.
+
+c) Storage Format: For storage format, Parquet can be used due to its columnar storage format. This format is ideal for any workloads beacause it  allows a faster querying and data retrieval. 
+
+d) Testing the Architecture Components:
+Testing can be done in multiple layers i.e.
+° Unit tests for individual components. Here we ensure that each unit works correctly in isolation.
+° Complete test to ensure that different components of the system (in our case: ingestion, processing, and storage) work together as expected.
+° Load testing to check if the expected volume of events can be handled by the system  without performance issues.
+° The data quality can be tested by the output of our data extraction script (Generally, any discripancies in data can be found out on creating a data frame using the pandas library).
+
+e) Ensuring Replicability Across Environments:
+To ensure the architecture is replicable across environments, use Infrastructure as Code (IaC) tools like Kubernates, Jenkins or Terraform for provisioning infrastructure. 
+This approach ensures that the entire infrastructure setup (e.g., Kinesis streams, S3 buckets, Lambda functions) can be versioned, shared and deployed consistently across different environments (example : development, staging, production).
+
+f) Adjusting the Solution Based on Event Volume: 
+If the amount of events changes significantly (either 1000 times smaller or bigger), the fundamental architecture could remain the same, but the scaling strategies might change. For smaller volumes, we might not need as many resources or as complex a partitioning strategy. For larger volumes, we might need to scale up the resources and possibly introduce more partitions to maintain the performance.
+
+g) Adjusting to removal of field additions/transformations:
+If adding fields or transforming data is no longer needed, the architecture could be simplified by removing the processing layer 
+responsible for these tasks.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------               
