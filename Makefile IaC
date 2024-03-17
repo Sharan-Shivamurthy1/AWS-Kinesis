@@ -1,0 +1,177 @@
+Creating a full solution with Terraform, Python, and a Makefile for automating environment creation, infrastructure provisioning, 
+and test execution is quite an extensive task. However, I'll outline the components you'll need and provide examples to get started. 
+This setup will include:
+a) Terraform scripts for provisioning the AWS infrastructure (Kinesis Stream, Kinesis Data Firehose, S3 bucket, Lambda function, IAM roles).
+b) Python script for the Lambda function.
+c) Makefile for automating environment setup and testing.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Step 1: AWS Infrastructure with Terraform
+Create Terraform scripts to provision the necessary AWS resources. 
+
+main.tf:
+
+provider "aws" {
+  region = "our-region"
+}
+
+resource "aws_kinesis_stream" "example_stream" {
+  name             = "example-stream"
+  shard_count      = 1
+}
+
+resource "aws_s3_bucket" "example_bucket" {
+  bucket = "example-bucket"
+}
+
+resource "aws_iam_role" "lambda_execution_role" {
+  name = "lambda_execution_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_lambda_function" "example_lambda" {
+  function_name = "exampleFunction"
+  role          = aws_iam_role.lambda_execution_role.arn
+  handler       = "index.handler"
+  runtime       = "python3.8"
+
+  # Assuming we have the Lambda function code in lambda_function.zip
+  filename         = "lambda_function.zip"
+  source_code_hash = filebase64sha256("lambda_function.zip")
+}
+
+# Add policies to the IAM role as needed, for example, allowing Lambda to write to CloudWatch Logs.
+variables.tf: Define any variables used in your Terraform scripts.
+
+outputs.tf: Define outputs from our Terraform scripts, such as the ARNs of created resources.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Step 2: Python Lambda Function
+Refer to the Python script in the code section for the Lambda function. 
+Ensure we package this script into a deployment package (ZIP file) for Terraform to deploy.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Step 3: Makefile (refrenced from source: https://developer.hashicorp.com/terraform/cli/run)
+A Makefile to automate setup and testing might include:
+
+init:
+    terraform init
+
+apply:
+    terraform apply
+
+destroy:
+    terraform destroy
+
+deploy_lambda:
+    zip -r lambda_function.zip .
+    aws lambda update-function-code --function-name exampleFunction --zip-file fileb://lambda_function.zip
+
+test:
+    # Add test commands here. This could involve invoking the Lambda function directly,
+    # or putting records into the Kinesis stream to trigger it.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Getting Started with procedures:(refrenced from source: https://developer.hashicorp.com/terraform/)
+
+a) Terraform Initialization: Run make init to initialize Terraform.
+b) Apply Infrastructure: Use make apply to provision the AWS resources.
+c) Deploy Lambda: After making changes to  Lambda function, use make deploy_lambda to update the function code in AWS.
+d) Testing: Implement the tests and run them with make test.
+e) Cleanup: Use make destroy to tear down the infrastructure.
+This outline should get us started, but we'll likely need to customize and extend it based on your project's specific requirements.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+This setup will automate environment creation and facilitate test execution for the 
+data processing solution that enriches events from an Amazon Kinesis stream before storing them in an S3 data lake.
+
+data-lake-project/
+├── Makefile
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+└── src/
+    └── lambda_function.py
+
+1. Terraform Configuration
+The Terraform setup will provision an AWS Kinesis Stream, an AWS Lambda function for data transformation, and an S3 bucket for the data lake.
+main.tf : This file defines the resources needed for the project.
+
+provider "aws" {
+  region = "our-region"
+}
+
+resource "aws_kinesis_stream" "example" {
+  name             = "example-kinesis-stream"
+  shard_count      = 1
+}
+
+resource "aws_s3_bucket" "data_lake" {
+  bucket = "our-data-lake-bucket-name"
+}
+
+resource "aws_iam_role" "lambda_execution_role" {
+  name = "lambda_execution_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_lambda_function" "data_enrichment" {
+  function_name = "DataEnrichmentFunction"
+
+  s3_bucket = "our-deployment-package-bucket"
+  s3_key    = "lambda_function.zip"
+
+  handler = "lambda_function.lambda_handler"
+  runtime = "python3.8"
+  role    = aws_iam_role.lambda_execution_role.arn
+}
+
+# Add necessary permissions for Lambda to access Kinesis and S3
+
+variables.tf: Define any variables for our Terraform configuration here.
+outputs.tf: Specify outputs from our Terraform configuration, such as ARNs and IDs that might be useful.
+
+2. Makefile: The Makefile will automate the setup of the environment and the execution of tests.
+
+init:
+    cd terraform && terraform init
+
+apply:
+    cd terraform && terraform apply
+
+destroy:
+    cd terraform && terraform destroy
+
+test:
+    python3 -m unittest discover -s src/tests
+
+.PHONY: init apply destroy test
+
+Running the Automation
+a) Initialize Terraform: Run make init to initialize Terraform.
+b) Apply Terraform Configuration: Run make apply to provision the AWS infrastructure.
+c) Destroy Infrastructure: When done, run make destroy to clean up resources to avoid unnecessary charges.
+d) Execute Tests: Run make test to execute any Python tests  for our Lambda function .
+e) Make sure to adjust the Terraform scripts and Python code according to your AWS setup and specific requirements, such as the S3 bucket name, 
+IAM roles, and policies. This setup provides a foundational structure to automate the deployment and testing of our data lake project.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
