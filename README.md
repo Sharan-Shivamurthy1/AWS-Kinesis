@@ -81,4 +81,4 @@ If the amount of events changes significantly (either 1000 times smaller or bigg
 g) Adjusting to removal of field additions/transformations:
 If adding fields or transforming data is no longer needed, the architecture could be simplified by removing the processing layer 
 responsible for these tasks.
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------               
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
