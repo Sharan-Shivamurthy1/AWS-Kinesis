@@ -19,7 +19,7 @@ and assume that the system will be working on the AWS cloud.
 Creating a data lake with events coming from an Amazon Kinesis stream involves various steps and components. Here's a general approach to set this up with AWS services:
 
 Setup:
-        1) Initially, set up an Amazon Kinesis stream that captures and temporarily store the streaming data. 
+        1) Initially, set up an Amazon Kinesis stream that captures and temporarily stores the streaming data. 
 2) Next, define the number of shards for our  stream based on the volume of data and the throughput we need.
 3) We can then integrate Kinesis Data Firehose with our Kinesis stream. It helps in capturing and automatically loading the streaming data into our data lake. Configuring Kinesis Data Firehose will also help us to transform the data before loading it into the data lake. This can be done using AWS Lambda for real-time data transformation.
 4) We then configure Kinesis Data Firehose to deliver the streaming data to our data lake storage. 
